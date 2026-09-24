@@ -1,14 +1,20 @@
-/* Personal Space Polka: an original 184 BPM, 32-bar chiptune loop. */
+/* Three original chiptunes, synthesized locally. No sampled recordings. */
 'use strict';
 (() => {
   const el = id => document.getElementById(id);
   let context, musicBus, fxBus, timer, nextTime = 0, step = 0;
   let musicOn = false, fxOn = false;
   const voices = new Set();
-  const bpm = 184, tick = 60 / bpm / 4;
+  const tracks = [
+    { id: 'critter', name: 'Critter Shuffle', bpm: 176, swing: .12, description: 'Squeaky lead · bouncy dance rhythm' },
+    { id: 'polka', name: 'Personal Space Polka', bpm: 184, swing: 0, description: 'Bright arcade pop · bouncing bass' },
+    { id: 'turbo', name: 'Turbo Tippy Toes', bpm: 202, swing: 0, description: 'Fast synth racer · punchy drums' }
+  ];
+  let trackIndex = 0;
+  let tick = 60 / tracks[trackIndex].bpm / 4;
   let volumes = { music: 35, fx: 65 };
-  try { const saved = JSON.parse(localStorage.getItem('kcw-audio') || '{}'); for (const key of ['music','fx']) if (Number.isFinite(saved[key])) volumes[key] = Math.max(0, Math.min(100, saved[key])); } catch {}
-  const save = () => { try { localStorage.setItem('kcw-audio', JSON.stringify(volumes)); } catch {} };
+  try { const saved = JSON.parse(localStorage.getItem('kcw-audio') || '{}'); if (typeof saved.track === 'string') trackIndex = Math.max(0, tracks.findIndex(track => track.id === saved.track)); tick = 60 / tracks[trackIndex].bpm / 4; for (const key of ['music','fx']) if (Number.isFinite(saved[key])) volumes[key] = Math.max(0, Math.min(100, saved[key])); } catch {}
+  const save = () => { try { localStorage.setItem('kcw-audio', JSON.stringify({ ...volumes, track: tracks[trackIndex].id })); } catch {} };
   const frequency = note => 440 * Math.pow(2, (note - 69) / 12);
   function init() {
     if (context) return;
@@ -25,7 +31,12 @@
     el('music').setAttribute('aria-pressed', String(musicOn));
     el('sound').textContent = fxOn ? 'FX ON' : 'FX OFF';
     el('sound').setAttribute('aria-pressed', String(fxOn));
-    el('music-state').textContent = musicOn ? 'Playing · Personal Space Polka' : 'Personal Space Polka · 184 BPM';
+    const track = tracks[trackIndex];
+    el('music-state').textContent = (musicOn ? 'Playing · ' : '') + track.name + ' · ' + track.bpm + ' BPM';
+    el('track-select').value = track.id;
+    el('track-description').textContent = track.description;
+    el('next-track').setAttribute('aria-label', 'Next track: ' + tracks[(trackIndex + 1) % tracks.length].name);
+    el('track-number').textContent = (trackIndex + 1) + ' / ' + tracks.length;
     if (context) { level(musicBus, musicOn && !document.hidden ? volumes.music / 100 : 0); level(fxBus, fxOn ? volumes.fx / 100 : 0); }
   }
   function tone(note, time, length, type, amplitude, pan = 0, glide = 0) {
@@ -60,7 +71,7 @@
     [81,83,86,null,83,81,78,null,74,78,81,79,78,74,71,null]
   ];
   const roots = [43,50,48,50,43,47,48,50];
-  function scheduleStep(index, time) {
+  function schedulePolka(index, time) {
     const bar = Math.floor(index / 16) % 32, beat = index % 16, section = Math.floor(bar / 8);
     const root = roots[bar % 8], minor = bar % 8 === 5;
     const melody = melodies[(bar % 4) + (section === 1 || section === 3 ? 4 : 0)];
@@ -78,10 +89,71 @@
     if (beat % 2 === 0) drum(time, beat % 4 === 2 ? .06 : .028, .043, 6500);
     if (bar % 8 === 7 && beat >= 12) drum(time, .045, .065, 1800);
   }
+  // Short, repeated eighth-note phrases with longer replies give this original
+  // tune a playful novelty-dance rhythm. Pitches and harmony are newly composed.
+  const critterPhrases = [
+    [[0,85,1.6],[2,80,1.6],[4,83,1.6],[6,87,1.6],[8,85,1.6],[10,80,1.6],[12,78,3.4],[16,83,1.6],[18,80,1.6],[20,78,1.6],[22,75,1.6],[24,80,3.4],[28,78,3.4]],
+    [[0,85,1.6],[2,80,1.6],[4,83,1.6],[6,87,1.6],[8,90,1.6],[10,87,1.6],[12,85,3.4],[16,87,1.6],[18,83,1.6],[20,80,1.6],[22,83,1.6],[24,78,3.4],[28,73,3.4]],
+    [[0,90,1.6],[2,87,1.6],[4,85,1.6],[6,83,1.6],[8,87,1.6],[10,90,1.6],[12,92,3.4],[16,90,1.6],[18,85,1.6],[20,83,1.6],[22,80,1.6],[24,83,3.4],[28,85,3.4]],
+    [[0,87,1.6],[2,83,1.6],[4,80,1.6],[6,78,1.6],[8,80,1.6],[10,83,1.6],[12,85,3.4],[16,83,1.6],[18,80,1.6],[20,78,1.6],[22,75,1.6],[24,73,3.4],[28,78,3.4]]
+  ];
+  function scheduleCritter(index, time) {
+    const bar = Math.floor(index / 16), beat = index % 16, section = Math.floor(bar / 8);
+    const root = [42,42,47,49,42,46,47,49][bar % 8];
+    const phrase = critterPhrases[Math.floor(bar / 2) % 4];
+    const event = phrase.find(note => note[0] === index % 32);
+    if (event && !(section === 2 && bar % 8 < 4 && beat % 4 !== 0)) {
+      const pitch = event[1] + (section === 3 ? 12 : 0);
+      tone(pitch, time, tick * event[2], 'triangle', .13, -.15, .16);
+      tone(pitch + 12, time, tick * event[2] * .7, 'sine', .035, .15, -.1);
+      tone(pitch - 12, time, tick * event[2] * .9, 'square', .023, .1);
+      if (section === 1 || section === 3) tone(pitch, time + tick * 3, tick, 'triangle', .024, .5);
+    }
+    if (beat % 4 === 0) tone(root + (beat === 8 ? 7 : 0), time, tick * 2.7, 'triangle', .3);
+    if (beat % 4 === 2) for (const interval of [12,16,19]) tone(root + interval, time, tick * .8, 'square', .02, -.3);
+    if (beat % 4 === 0) tone(44, time, .13, 'sine', .4, 0, -26);
+    if (beat === 4 || beat === 12) { drum(time, .11, .12, 1250); tone(51, time, .055, 'triangle', .09, 0, -8); }
+    if (beat % 2 === 0) drum(time, beat % 4 === 2 ? .07 : .025, .045, 7000);
+    if (section >= 2 && beat % 2 === 1) tone(root + [24,31,28,36][Math.floor(beat / 2) % 4], time, tick * .75, 'triangle', .04, .4);
+    if (bar % 8 === 7 && beat >= 12) drum(time, .045, .07, 1900);
+  }
+  const turboLead = [
+    [76,null,83,79,null,86,83,null,88,86,null,83,79,null,83,86],
+    [74,81,null,78,85,null,81,78,null,86,85,81,78,null,74,null],
+    [72,null,79,76,83,null,84,83,79,76,null,79,84,83,null,79],
+    [71,78,null,75,83,81,78,null,87,83,81,78,75,78,83,null]
+  ];
+  function scheduleTurbo(index, time) {
+    const bar = Math.floor(index / 16), beat = index % 16, section = Math.floor(bar / 8);
+    const root = [40,38,36,35][bar % 4], note = turboLead[bar % 4][beat];
+    if (note !== null && !(section === 2 && bar % 8 < 4 && beat % 2)) {
+      tone(note + (section === 3 ? 12 : 0), time, tick * .95, 'sawtooth', .04, -.12);
+      tone(note - 12, time, tick * 1.4, 'square', .04, .12);
+      if (section === 1 || section === 3) tone(note, time + tick * 3, tick, 'triangle', .027, .4);
+    }
+    if (beat % 2 === 0) { tone(root + (beat % 4 === 2 ? 12 : 0), time, tick * 1.4, 'triangle', .27); tone(root, time, tick, 'sawtooth', .024); }
+    if (beat % 4 === 0 || beat === 10) tone(46, time, .12, 'sine', .42, 0, -28);
+    if (beat === 4 || beat === 12) { drum(time, .12, .13, 950); tone(52, time, .06, 'triangle', .1, 0, -12); }
+    if (beat % 2 === 0 || section === 3) drum(time, .035, .035, 6500);
+    if (beat % 4 === 2) for (const interval of [24,27,31]) tone(root + interval, time, tick * .6, 'square', .015, -.4);
+    if (bar % 8 === 7 && beat >= 12) tone(root + [24,27,31,36][beat - 12], time, tick, 'square', .05, .2);
+  }
+  function scheduleStep(index, time) {
+    if (tracks[trackIndex].id === 'critter') scheduleCritter(index, time);
+    else if (tracks[trackIndex].id === 'turbo') scheduleTurbo(index, time);
+    else schedulePolka(index, time);
+  }
+  function selectTrack(index) {
+    trackIndex = (index + tracks.length) % tracks.length;
+    tick = 60 / tracks[trackIndex].bpm / 4;
+    step = 0;
+    if (musicOn && context) startSequencer();
+    refresh(); save();
+  }
   function pump() {
     if (!musicOn || document.hidden || context.state !== 'running') return;
     if (nextTime < context.currentTime - .1) nextTime = context.currentTime + .03;
-    while (nextTime < context.currentTime + .16) { scheduleStep(step, nextTime); nextTime += tick; step = (step + 1) % 512; }
+    while (nextTime < context.currentTime + .16) { scheduleStep(step, nextTime + (step % 2 ? tick * tracks[trackIndex].swing : 0)); nextTime += tick; step = (step + 1) % 512; }
   }
   function stopSequencer() { clearInterval(timer); timer = null; for (const voice of voices) { try { voice.stop(); } catch {} } voices.clear(); }
   function startSequencer() { stopSequencer(); nextTime = context.currentTime + .04; pump(); timer = setInterval(pump, 25); }
@@ -108,6 +180,11 @@
     slider.value = volumes[kind]; output.value = volumes[kind] + '%';
     slider.oninput = () => { volumes[kind] = Number(slider.value); output.value = slider.value + '%'; refresh(); save(); };
   }
+  for (const track of tracks) { const option = document.createElement('option'); option.value = track.id; option.textContent = track.name; el('track-select').append(option); }
+  el('track-select').onchange = event => selectTrack(tracks.findIndex(track => track.id === event.target.value));
+  el('next-track').onclick = () => selectTrack(trackIndex + 1);
+  el('previous-track').onclick = () => selectTrack(trackIndex - 1);
+  el('mixer-next-track').onclick = () => selectTrack(trackIndex + 1);
   el('music').onclick = () => toggle('music'); el('sound').onclick = () => toggle('fx');
   document.addEventListener('visibilitychange', async () => {
     if (!context) return;
